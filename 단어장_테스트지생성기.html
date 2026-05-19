@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>단어장 테스트지 생성기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f0ede8;
+    --surface: #faf8f5;
+    --border: #d6d0c8;
+    --text: #1a1714;
+    --muted: #7a7268;
+    --accent: #2d5a27;
+    --accent2: #1a3a7a;
+    --accent3: #8a3a00;
+    --accent4: #6b2080;
+    --danger: #8a1a1a;
+    --ink: #1a1714;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Pretendard', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--ink);
+    color: #f0ede8;
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    border-bottom: 3px solid var(--accent);
+  }
+  .header-title { font-size: 20px; font-weight: 900; letter-spacing: -0.5px; }
+  .header-sub { font-size: 12px; color: #a09888; font-family: 'DM Mono', monospace; }
+
+  /* ── LAYOUT ── */
+  .app { display: grid; grid-template-columns: 200px 420px 1fr; height: calc(100vh - 69px); }
+
+  /* ── SAVED LIST PANEL ── */
+  .saved-panel {
+    background: #13120f;
+    border-right: 1px solid #2a2720;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: #e0dbd3;
+  }
+  .saved-panel-title {
+    padding: 14px 14px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #6a6458;
+    font-family: 'DM Mono', monospace;
+    border-bottom: 1px solid #2a2720;
+  }
+  .saved-list { flex: 1; overflow-y: auto; padding: 6px; }
+  .folder-item { margin-bottom: 2px; }
+  .folder-header {
+    display: flex; align-items: center; gap: 5px;
+    padding: 7px 8px; border-radius: 6px; cursor: pointer;
+    transition: background 0.15s; border: 1px solid transparent;
+  }
+  .folder-header:hover { background: #1e1c18; }
+  .folder-arrow { font-size: 9px; color: #5a5450; transition: transform 0.2s; flex-shrink:0; }
+  .folder-arrow.open { transform: rotate(90deg); }
+  .folder-icon { font-size: 12px; flex-shrink:0; }
+  .folder-name {
+    font-size: 11px; font-weight: 800; color: #b0a898; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .folder-count { font-size: 10px; color: #4a4840; font-family: 'DM Mono', monospace; flex-shrink:0; }
+  .folder-del {
+    background: transparent; border: none; color: #3a3830;
+    cursor: pointer; font-size: 11px; padding: 0 2px; transition: color 0.15s; flex-shrink:0;
+  }
+  .folder-del:hover { color: #cc4444; }
+  .folder-children {
+    margin-left: 12px; border-left: 1px solid #2a2720;
+    padding-left: 4px; display: none;
+  }
+  .folder-children.open { display: block; }
+  .saved-item {
+    display: flex; align-items: center; gap: 5px;
+    padding: 6px 8px; border-radius: 6px; cursor: pointer;
+    transition: background 0.15s; margin-bottom: 1px; border: 1px solid transparent;
+  }
+  .saved-item:hover { background: #1e1c18; }
+  .saved-item.active { background: #222018; border-color: #3a3730; }
+  .saved-item-day { font-size: 12px; font-weight: 800; color: #e0dbd3; flex: 1; }
+  .saved-item-count { font-size: 10px; color: #5a5450; font-family: 'DM Mono', monospace; flex-shrink:0; }
+  .saved-item-del {
+    background: transparent; border: none; color: #3a3830;
+    cursor: pointer; font-size: 11px; padding: 0; transition: color 0.15s; flex-shrink: 0;
+  }
+  .saved-item-del:hover { color: #cc4444; }
+  .saved-new-btn {
+    margin: 6px 8px 8px; padding: 9px; background: transparent;
+    border: 1px dashed #2a2720; border-radius: 7px; color: #5a5450;
+    font-family: 'Pretendard', sans-serif; font-size: 12px;
+    cursor: pointer; transition: all 0.15s; text-align: center; width: calc(100% - 16px);
+  }
+  .saved-new-btn:hover { border-color: #5a5850; color: #a0988e; background: #1a1816; }
+  .saved-empty { padding: 24px 12px; text-align: center; color: #4a4840; font-size: 12px; line-height: 1.7; }
+
+  /* ── LEFT PANEL ── */
+  .left-panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-section:last-child { border-bottom: none; }
+
+  .section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* 로고 업로드 */
+  .logo-upload-area {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg);
+    position: relative;
+  }
+  .logo-upload-area:hover { border-color: var(--accent); background: #e8f0e7; }
+  .logo-upload-area input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .logo-preview { max-height: 60px; max-width: 200px; object-fit: contain; display: none; margin: 0 auto; }
+  .logo-placeholder { color: var(--muted); font-size: 12px; }
+  .logo-placeholder span { display: block; font-size: 22px; margin-bottom: 4px; }
+
+  /* 설정 */
+  .setting-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: center;
+  }
+  .setting-row label { font-size: 12px; color: var(--muted); width: 80px; flex-shrink: 0; }
+  .setting-row input[type="text"] {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .setting-row input[type="number"] {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .setting-row input[type="number"]:focus { border-color: var(--accent); }
+  .setting-row input[type="number"]::-webkit-inner-spin-button { opacity: 1; }
+
+  /* 단어 테이블 */
+  .word-table-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 20px 20px;
+  }
+  .word-table-header {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr 32px;
+    gap: 6px;
+    padding: 8px 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 1;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  .word-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 1fr 32px;
+    gap: 6px;
+    margin-bottom: 5px;
+    align-items: center;
+  }
+  .word-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    padding-top: 2px;
+  }
+  .word-input {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 9px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .word-input:focus { border-color: var(--accent); background: #fff; }
+  .del-btn {
+    width: 26px; height: 26px;
+    border: none; border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .del-btn:hover { background: #fce8e8; color: var(--danger); }
+
+  .add-row-btn {
+    width: 100%;
+    padding: 9px;
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+  .add-row-btn:hover { border-color: var(--accent); color: var(--accent); background: #e8f0e7; }
+
+  /* 생성 버튼 */
+  .gen-buttons {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--surface);
+  }
+  .gen-btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+    color: #fff;
+  }
+  .gen-btn:active { transform: scale(0.98); }
+  .gen-btn-a { background: var(--accent2); }
+  .gen-btn-a:hover { background: #1030a0; }
+  .gen-btn-b { background: var(--accent3); }
+  .gen-btn-b:hover { background: #a04800; }
+  .gen-btn-c { background: var(--accent4); }
+  .gen-btn-c:hover { background: #7a28a0; }
+  .gen-btn-icon { font-size: 16px; }
+  .gen-btn-desc { font-size: 10px; font-weight: 400; opacity: 0.85; margin-top: 1px; }
+
+  /* ── RIGHT PANEL (미리보기) ── */
+  .right-panel {
+    background: #e8e5e0;
+    overflow-y: auto;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .preview-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--muted);
+    text-align: center;
+    gap: 12px;
+  }
+  .preview-placeholder .icon { font-size: 48px; opacity: 0.4; }
+  .preview-placeholder p { font-size: 14px; }
+
+  /* 인쇄 툴바 */
+  .print-toolbar {
+    display: none;
+    width: 780px;
+    max-width: 100%;
+    margin-bottom: 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .print-toolbar.visible { display: flex; }
+  .print-btn {
+    padding: 9px 18px;
+    border-radius: 6px;
+    border: none;
+    font-family: 'Pretendard', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .print-btn-main { background: var(--ink); color: #fff; }
+  .print-btn-main:hover { background: #333; }
+  .print-btn-answer { background: #2d5a27; color: #fff; }
+  .print-btn-answer:hover { background: #1e3d1a; }
+  .print-btn-clear { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .print-btn-clear:hover { background: #fce8e8; color: var(--danger); border-color: var(--danger); }
+  .print-info { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-left: auto; font-family: 'DM Mono', monospace; }
+
+  /* ── A4 시트 ── */
+  .sheet-wrap { margin-bottom: 24px; }
+  .sheet-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 8px;
+    width: 780px;
+    max-width: 100%;
+  }
+
+  .a4-sheet {
+    width: 780px;
+    min-height: 1102px;
+    background: #ffffff;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+    padding: 48px 56px;
+    position: relative;
+  }
+
+  /* 시트 헤더 */
+  .sheet-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--ink);
+  }
+  .sheet-header-left { display: flex; flex-direction: column; gap: 4px; }
+  .sheet-logo { max-height: 50px; max-width: 160px; object-fit: contain; display: none; }
+  .sheet-academy { font-size: 13px; font-weight: 700; color: #555; letter-spacing: 0.5px; }
+  .sheet-title { font-size: 24px; font-weight: 900; color: var(--ink); letter-spacing: -0.5px; line-height: 1.2; }
+  .sheet-subtitle { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; margin-top: 2px; }
+  .sheet-meta { text-align: right; }
+  .sheet-meta-row { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-family: 'DM Mono', monospace; }
+  .sheet-meta-row span { display: inline-block; width: 120px; border-bottom: 1px solid #ccc; }
+
+  /* 테이블 */
+  .word-sheet-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .word-sheet-table th {
+    background: #111111;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 9px 12px;
+    text-align: left;
+    font-family: 'DM Mono', monospace;
+  }
+  .word-sheet-table th:first-child { width: 44px; text-align: center; border-radius: 0; border-right: 1.5px solid #444; }
+  .word-sheet-table th:nth-child(2),
+  .word-sheet-table td:nth-child(2) { width: 50%; }
+  .word-sheet-table th:nth-child(3),
+  .word-sheet-table td:nth-child(3) { width: 50%; }
+  .word-sheet-table td {
+    padding: 9px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid #e8e5e0;
+    vertical-align: middle;
+  }
+  .word-sheet-table td.col-divider {
+    border-right: 1.5px solid #cccccc;
+  }
+  .word-sheet-table td:first-child { text-align: center; color: var(--muted); font-size: 11px; font-family: 'DM Mono', monospace; border-right: 1.5px solid #cccccc; }
+  .word-sheet-table tr:nth-child(even) td { background: #f8f6f3; }
+  .word-sheet-table td.answer { color: #111111; font-weight: 700; }
+  .write-line { display: none; }
+
+  /* 답지 강조 */
+  .answer-badge {
+    display: inline-block;
+    background: #111111;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 8px;
+    vertical-align: middle;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* 혼합 유형 뱃지 */
+  .type-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+  .type-eng { background: #dce8ff; color: #1a3a7a; }
+  .type-kor { background: #ffe8d0; color: #8a3a00; }
+
+  /* ── 인쇄 스타일 ── */
+  @page {
+    margin: 15mm 16mm;
+    size: A4;
+  }
+  @media print {
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .word-sheet-table td, .word-sheet-table th { border-color: #aaaaaa !important; }
+    .word-sheet-table td:first-child, .word-sheet-table th:first-child { border-right: 1.5px solid #aaaaaa !important; }
+    .word-sheet-table td.col-divider { border-right: 1.5px solid #aaaaaa !important; }
+    html, body { margin: 0 !important; padding: 0 !important; }
+    body { background: white; }
+    .app { display: block; height: auto; }
+    .left-panel, .saved-panel, .print-toolbar, .sheet-label, .header { display: none !important; }
+    .right-panel { background: white; padding: 0; display: block; }
+    .sheet-wrap { margin-bottom: 0; page-break-after: always; }
+    .sheet-wrap:last-child { page-break-after: avoid; }
+    .a4-sheet {
+      width: 100%;
+      min-height: auto;
+      box-shadow: none;
+      padding: 0;
+    }
+    .preview-placeholder { display: none; }
+    .preview-placeholder { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">단어장 테스트지 생성기</div>
+    <div class="header-sub">VOCABULARY TEST GENERATOR</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:12px;">
+    <span id="syncStatus" style="font-size:12px;color:#6a6458;font-family:'DM Mono',monospace;">☁️ 로딩 중...</span>
+    <button onclick="cloudLoad().then(()=>{renderSavedList();renderBookTags();})" style="padding:6px 14px;background:transparent;border:1px solid #3a3730;border-radius:6px;color:#a09888;font-family:'Pretendard',sans-serif;font-size:12px;font-weight:700;cursor:pointer;" title="클라우드에서 불러오기">↓ 불러오기</button>
+    <button onclick="cloudSave(getCloudData())" style="padding:6px 14px;background:#2d5a27;border:none;border-radius:6px;color:#fff;font-family:'Pretendard',sans-serif;font-size:12px;font-weight:700;cursor:pointer;" title="클라우드에 저장">↑ 클라우드 저장</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ── SAVED LIST PANEL ── -->
+  <div class="saved-panel">
+    <div class="saved-panel-title">저장된 단어장</div>
+    <div class="saved-list" id="savedList">
+      <div class="saved-empty" id="savedEmpty">저장된 단어장이<br>없습니다</div>
+    </div>
+    <button class="saved-new-btn" onclick="newWordList()">＋ 새 단어장</button>
+  </div>
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="left-panel">
+
+    <!-- 학원 정보 -->
+    <div class="panel-section">
+      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>학원 정보</span>
+        <button id="editInfoBtn" onclick="toggleEditMode()" style="display:none;font-size:11px;font-weight:700;background:transparent;border:1px solid var(--border);border-radius:5px;padding:3px 10px;cursor:pointer;color:var(--muted);font-family:'Pretendard',sans-serif">✏️ 편집</button>
+      </div>
+
+      <!-- 등록 완료 뷰 -->
+      <div id="infoRegistered" style="display:none;align-items:center;gap:14px;background:var(--bg);border-radius:8px;padding:12px 14px;border:1px solid var(--border)">
+        <img id="logoRegistered" style="max-height:44px;max-width:120px;object-fit:contain" alt="로고">
+        <div>
+          <div id="academyRegisteredName" style="font-size:15px;font-weight:900;color:var(--text)"></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace">편집 버튼으로 수정 가능</div>
+        </div>
+      </div>
+
+      <!-- 편집 뷰 -->
+      <div id="infoEdit">
+        <div class="logo-upload-area" id="logoUploadArea" onclick="document.getElementById('logoInput').click()">
+          <input type="file" id="logoInput" accept="image/*" onchange="handleLogo(event)" style="display:none">
+          <img id="logoPreview" class="logo-preview" alt="로고">
+          <div class="logo-placeholder" id="logoPlaceholder">
+            <span>🏫</span>로고 이미지 클릭하여 업로드
+          </div>
+        </div>
+        <div class="setting-row" style="margin-top:12px">
+          <label>학원명</label>
+          <input type="text" id="academyName" placeholder="예) 배움트리" value="">
+        </div>
+        <button onclick="saveInfo()" style="width:100%;margin-top:6px;padding:9px;background:var(--ink);color:#fff;border:none;border-radius:7px;font-family:'Pretendard',sans-serif;font-size:13px;font-weight:700;cursor:pointer">저장</button>
+      </div>
+
+      <div class="setting-row" style="margin-top:12px">
+        <label>교재명</label>
+        <div style="flex:1;display:flex;gap:6px;align-items:center">
+          <input type="text" id="bookName" list="bookList" placeholder="교재명 입력 또는 선택" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-family:'Pretendard',sans-serif;font-size:13px;background:var(--bg);color:var(--text);outline:none" oninput="onBookInput()" onchange="onBookChange()">
+          <datalist id="bookList"></datalist>
+          <button onclick="saveBookName()" title="교재명 저장" style="padding:6px 10px;background:var(--ink);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap;font-family:'Pretendard',sans-serif">저장</button>
+        </div>
+      </div>
+      <div id="savedBookTags" style="display:flex;flex-wrap:wrap;gap:5px;margin:0 0 4px 0;padding:0 0 0 0"></div>
+      <div class="setting-row">
+        <label>DAY</label>
+        <div style="display:flex;align-items:center;gap:8px;flex:1">
+          <span style="font-weight:700;font-size:14px;color:var(--text);letter-spacing:0.5px">DAY</span>
+          <input type="number" id="unitName" placeholder="1" min="1" style="width:80px;flex:none;text-align:center">
+        </div>
+      </div>
+    </div>
+
+    <!-- 단어 입력 -->
+    <div class="panel-section" style="padding-bottom:8px">
+      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>단어 입력 <span id="wordCount" style="color:var(--accent);font-weight:900">0</span>개</span>
+        <button onclick="saveWordList()" style="font-size:11px;font-weight:700;background:var(--ink);border:none;border-radius:5px;padding:4px 12px;cursor:pointer;color:#fff;font-family:'Pretendard',sans-serif">💾 저장</button>
+      </div>
+      <div id="dropZone" onclick="document.getElementById('fileInput').click()"
+        style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;background:#f0ede8;border:1.5px dashed #b0a898;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700;color:#7a7268;font-family:'Pretendard',sans-serif;margin-bottom:8px;transition:all 0.2s;box-sizing:border-box">
+        <span id="dropZoneText">📂 클릭하거나 파일을 여기에 드래그 (.docx / .xlsx / .txt)</span>
+        <input type="file" id="fileInput" accept=".txt,.docx,.xlsx,.xls" style="display:none" onchange="handleFileInput(event)">
+      </div>
+      <div class="word-table-header">
+        <div>#</div><div>영어 단어</div><div>한글 뜻</div><div></div>
+      </div>
+    </div>
+
+    <div class="word-table-wrap" id="wordTableWrap">
+      <!-- 단어 행 동적 생성 -->
+      <button class="add-row-btn" onclick="addRow()">＋ 단어 추가</button>
+    </div>
+
+    <!-- 생성 버튼 -->
+    <div class="gen-buttons">
+      <button class="gen-btn gen-btn-a" onclick="generate('A')">
+        <span class="gen-btn-icon">📝</span>
+        <div>
+          <div>영어 → 한글 뜻 쓰기</div>
+          <div class="gen-btn-desc">영어 단어 보고 한글 뜻 쓰기 · 테스트지 + 답지</div>
+        </div>
+      </button>
+      <button class="gen-btn gen-btn-b" onclick="generate('B')">
+        <span class="gen-btn-icon">✏️</span>
+        <div>
+          <div>한글 → 영어 단어 쓰기</div>
+          <div class="gen-btn-desc">한글 뜻 보고 영어 단어 쓰기 · 테스트지 + 답지</div>
+        </div>
+      </button>
+      <button class="gen-btn gen-btn-c" onclick="generate('C')">
+        <span class="gen-btn-icon">🔀</span>
+        <div>
+          <div>영어 + 한글 혼합</div>
+          <div class="gen-btn-desc">홀수=영→한 / 짝수=한→영 혼합 · 테스트지 + 답지</div>
+        </div>
+      </button>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="right-panel" id="rightPanel">
+    <div class="preview-placeholder" id="previewPlaceholder">
+      <div class="icon">📄</div>
+      <p>왼쪽에서 단어를 입력하고<br>버튼을 눌러 테스트지를 생성하세요</p>
+    </div>
+
+    <div class="print-toolbar" id="printToolbar">
+      <button class="print-btn print-btn-main" onclick="printOnly('test')">🖨️ 문제지 인쇄</button>
+      <button class="print-btn print-btn-answer" onclick="printOnly('answer')">🖨️ 정답지 인쇄</button>
+      <button class="print-btn print-btn-main" onclick="printOnly('both')" style="background:#444">🖨️ 전체 인쇄</button>
+      <button class="print-btn print-btn-clear" onclick="clearPreview()">✕ 지우기</button>
+      <div class="print-info">여백=최소 권장</div>
+    </div>
+
+    <div id="sheetsContainer"></div>
+  </div>
+
+</div>
+
+<script>
+// ── 상태 ──────────────────────────────────────────
+let words = [];
+let logoDataURL = null;
+let currentDayKey = null; // 현재 편집 중인 저장 키
+
+// ── 단어장 저장/불러오기 ──────────────────────────────
+// ── JSONBin 클라우드 동기화 ──────────────────────────
+const JSONBIN_KEY = '$2a$10$yG2rOIbC7zLa7jxsRhKLVujozCfZirqEjLmQ3fA4OHn8QmjVFfr4a';
+const JSONBIN_BASE = 'https://api.jsonbin.io/v3';
+let binId = localStorage.getItem('jsonbin_bin_id') || null;
+let isSyncing = false;
+
+function showSyncStatus(msg, color='#7a7268') {
+  let el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+}
+
+async function cloudSave(data) {
+  isSyncing = true;
+  showSyncStatus('☁️ 저장 중...', '#1a3a7a');
+  try {
+    if (!binId) {
+      // 최초: bin 생성
+      const res = await fetch(`${JSONBIN_BASE}/b`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY,
+          'X-Bin-Name': '배움트리단어장',
+          'X-Bin-Private': 'true'
+        },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+      binId = json.metadata.id;
+      localStorage.setItem('jsonbin_bin_id', binId);
+    } else {
+      // 업데이트
+      await fetch(`${JSONBIN_BASE}/b/${binId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': JSONBIN_KEY
+        },
+        body: JSON.stringify(data)
+      });
+    }
+    showSyncStatus('✓ 클라우드 저장됨', '#2d5a27');
+    setTimeout(() => showSyncStatus('☁️ 동기화됨', '#2d5a27'), 2000);
+  } catch(e) {
+    showSyncStatus('⚠ 저장 실패', '#8a1a1a');
+  }
+  isSyncing = false;
+}
+
+async function cloudLoad() {
+  if (!binId) {
+    // bin ID 없으면 목록에서 찾기
+    showSyncStatus('☁️ 불러오는 중...', '#1a3a7a');
+    try {
+      const res = await fetch(`${JSONBIN_BASE}/b?sortBy=createdAt&sortOrder=desc`, {
+        headers: { 'X-Master-Key': JSONBIN_KEY }
+      });
+      const json = await res.json();
+      if (json && json.length > 0) {
+        // 배움트리단어장 bin 찾기
+        const found = json.find(b => b.snippetMeta?.name === '배움트리단어장');
+        if (found) {
+          binId = found.snippetMeta.id;
+          localStorage.setItem('jsonbin_bin_id', binId);
+        } else {
+          binId = json[0].snippetMeta?.id;
+          if (binId) localStorage.setItem('jsonbin_bin_id', binId);
+        }
+      }
+    } catch(e) { showSyncStatus('⚠ 불러오기 실패', '#8a1a1a'); return; }
+  }
+  if (!binId) { showSyncStatus('☁️ 새 저장소', '#7a7268'); return; }
+  try {
+    const res = await fetch(`${JSONBIN_BASE}/b/${binId}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_KEY }
+    });
+    const json = await res.json();
+    const data = json.record;
+    if (data && data.wordlists) {
+      localStorage.setItem('wordlists', JSON.stringify(data.wordlists));
+    }
+    if (data && data.booknames) {
+      localStorage.setItem('booknames', JSON.stringify(data.booknames));
+    }
+    showSyncStatus('✓ 불러오기 완료', '#2d5a27');
+    setTimeout(() => showSyncStatus('☁️ 동기화됨', '#2d5a27'), 2000);
+    renderSavedList();
+    renderBookTags();
+  } catch(e) {
+    showSyncStatus('⚠ 불러오기 실패', '#8a1a1a');
+  }
+}
+
+function getCloudData() {
+  return {
+    wordlists: getSavedLists(),
+    booknames: getSavedBooks()
+  };
+}
+
+function getSavedLists() {
+  try { return JSON.parse(localStorage.getItem('wordlists') || '{}'); } catch { return {}; }
+}
+
+function saveWordList() {
+  const dayNum = document.getElementById('unitName').value.trim();
+  if (!dayNum) { alert('DAY 번호를 먼저 입력해주세요.'); return; }
+  const valid = shuffle(words.filter(w => w.eng && w.kor));
+  if (valid.length === 0) { alert('저장할 단어가 없습니다.'); return; }
+  showSaveFolderModal(dayNum, valid);
+}
+
+function showSaveFolderModal(dayNum, valid) {
+  const exist = document.getElementById('saveFolderModal');
+  if (exist) exist.remove();
+
+  const lists = getSavedLists();
+  const books = getSavedBooks();
+  const existingFolders = [...new Set([
+    ...Object.values(lists).map(d => d.book).filter(Boolean),
+    ...books
+  ])].sort();
+  const currentBook = document.getElementById('bookName').value.trim();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'saveFolderModal';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;';
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'background:#faf8f5;border-radius:14px;padding:24px;width:340px;display:flex;flex-direction:column;gap:14px;box-shadow:0 8px 40px rgba(0,0,0,0.2);';
+
+  modal.innerHTML = `
+    <div style="font-size:16px;font-weight:900;color:#1a1714;">저장할 폴더 선택</div>
+    <div style="font-size:12px;color:#7a7268;">DAY ${dayNum} &middot; ${valid.length}개 단어</div>
+    <div id="folderOptionList" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;"></div>
+    <div style="border-top:1px solid #e0dbd3;padding-top:12px;">
+      <div style="font-size:11px;font-weight:700;color:#7a7268;margin-bottom:6px;">새 폴더 만들기</div>
+      <div style="display:flex;gap:8px;">
+        <input id="newFolderInput" type="text" placeholder="교재명 입력"
+          style="flex:1;border:1px solid #d6d0c8;border-radius:7px;padding:8px 10px;font-family:'Pretendard',sans-serif;font-size:13px;background:#f0ede8;outline:none;">
+        <button id="newFolderSaveBtn"
+          style="padding:8px 14px;background:#1a1714;color:#fff;border:none;border-radius:7px;font-family:'Pretendard',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">저장</button>
+      </div>
+    </div>
+    <button id="cancelSaveBtn"
+      style="padding:9px;background:transparent;border:1px solid #d6d0c8;border-radius:7px;font-family:'Pretendard',sans-serif;font-size:13px;color:#7a7268;cursor:pointer;">취소</button>
+  `;
+
+  // 기존 폴더 버튼
+  const listEl = modal.querySelector('#folderOptionList');
+  if (existingFolders.length === 0) {
+    listEl.innerHTML = '<div style="font-size:12px;color:#aaa;text-align:center;padding:8px">저장된 폴더가 없습니다</div>';
+  } else {
+    existingFolders.forEach(folder => {
+      const isSelected = folder === currentBook;
+      const btn = document.createElement('button');
+      btn.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;border:1.5px solid ' +
+        (isSelected ? '#1a1714' : '#e0dbd3') + ';background:' + (isSelected ? '#1a1714' : '#fff') +
+        ';color:' + (isSelected ? '#fff' : '#1a1714') +
+        ';font-family:"Pretendard",sans-serif;font-size:13px;font-weight:700;cursor:pointer;text-align:left;width:100%;';
+      btn.innerHTML = '<span>' + (isSelected ? '📂' : '📁') + '</span><span style="flex:1">' + folder + '</span>' +
+        (isSelected ? '<span style="font-size:11px;opacity:0.7">현재</span>' : '');
+      btn.onmouseover = () => { if (!isSelected) { btn.style.background = '#f0ede8'; btn.style.borderColor = '#b0a898'; } };
+      btn.onmouseout  = () => { if (!isSelected) { btn.style.background = '#fff';    btn.style.borderColor = '#e0dbd3'; } };
+      btn.onclick = () => confirmSave(folder, dayNum, valid);
+      listEl.appendChild(btn);
+    });
+  }
+
+  // 새 폴더 기본값
+  modal.querySelector('#newFolderInput').value = (currentBook && !existingFolders.includes(currentBook)) ? currentBook : '';
+  modal.querySelector('#newFolderSaveBtn').onclick = () => {
+    confirmSave(null, dayNum, valid);
+  };
+  modal.querySelector('#cancelSaveBtn').onclick = () => overlay.remove();
+
+  overlay.appendChild(modal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function confirmSave(folder, dayNum, valid) {
+  let book = folder;
+  if (!book) {
+    const inp = document.getElementById('newFolderInput');
+    book = inp ? inp.value.trim() : '';
+    if (!book) book = '미분류';
+  }
+  const key = 'DAY ' + dayNum;
+  const lists = getSavedLists();
+  lists[key] = { day: dayNum, words: valid, book: book, savedAt: new Date().toISOString() };
+  localStorage.setItem('wordlists', JSON.stringify(lists));
+
+  document.getElementById('bookName').value = book;
+  const bks = getSavedBooks();
+  if (!bks.includes(book)) { bks.unshift(book); localStorage.setItem('booknames', JSON.stringify(bks)); }
+
+  currentDayKey = key;
+  renderSavedList();
+  renderBookTags();
+  cloudSave(getCloudData());
+
+  const modal = document.getElementById('saveFolderModal');
+  if (modal) modal.remove();
+
+  const btn = document.querySelector('[onclick="saveWordList()"]');
+  if (btn) {
+    const orig = btn.textContent;
+    btn.textContent = '✓ 저장됨';
+    btn.style.background = '#2d5a27';
+    setTimeout(() => { btn.textContent = orig; btn.style.background = 'var(--ink)'; }, 1500);
+  }
+}
+
+
+
+function loadWordList(key) {
+  const lists = getSavedLists();
+  const data = lists[key];
+  if (!data) return;
+  currentDayKey = key;
+
+  // DAY 번호 세팅
+  document.getElementById('unitName').value = data.day;
+
+  // 단어 행 초기화 후 로드
+  const wrap = document.getElementById('wordTableWrap');
+  const addBtn = wrap.querySelector('.add-row-btn');
+  wrap.querySelectorAll('.word-row').forEach(r => r.remove());
+
+  data.words.forEach((w, i) => {
+    const row = document.createElement('div');
+    row.className = 'word-row';
+    row.innerHTML = `
+      <div class="word-num">${String(i+1).padStart(2,'0')}</div>
+      <input class="word-input" type="text" placeholder="English" value="${escHtml(w.eng)}" oninput="syncWords()">
+      <input class="word-input" type="text" placeholder="한글 뜻" value="${escHtml(w.kor)}" oninput="syncWords()">
+      <button class="del-btn" onclick="deleteRow(this)" title="삭제">✕</button>
+    `;
+    wrap.insertBefore(row, addBtn);
+  });
+  syncWords();
+  renderSavedList();
+  clearPreview();
+}
+
+function deleteWordList(key, e) {
+  e.stopPropagation();
+  if (!confirm(`"${key}" 단어장을 삭제할까요?`)) return;
+  const lists = getSavedLists();
+  delete lists[key];
+  localStorage.setItem('wordlists', JSON.stringify(lists));
+  if (currentDayKey === key) currentDayKey = null;
+  renderSavedList();
+}
+
+function newWordList() {
+  currentDayKey = null;
+  document.getElementById('unitName').value = '';
+  const wrap = document.getElementById('wordTableWrap');
+  const addBtn = wrap.querySelector('.add-row-btn');
+  wrap.querySelectorAll('.word-row').forEach(r => r.remove());
+  for (let i = 0; i < 10; i++) addRow(false);
+  syncWords();
+  renderSavedList();
+  clearPreview();
+}
+
+// ── 교재명 저장/관리 ──────────────────────────────
+function getSavedBooks() {
+  try { return JSON.parse(localStorage.getItem('booknames') || '[]'); } catch { return []; }
+}
+
+function saveBookName() {
+  const name = document.getElementById('bookName').value.trim();
+  if (!name) { alert('교재명을 입력해주세요.'); return; }
+  const books = getSavedBooks();
+  if (!books.includes(name)) {
+    books.unshift(name);
+    localStorage.setItem('booknames', JSON.stringify(books));
+  }
+  renderBookTags();
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '✓';
+  btn.style.background = '#2d5a27';
+  setTimeout(() => { btn.textContent = orig; btn.style.background = 'var(--ink)'; }, 1200);
+}
+
+function deleteBook(name) {
+  const books = getSavedBooks().filter(b => b !== name);
+  localStorage.setItem('booknames', JSON.stringify(books));
+  renderBookTags();
+}
+
+function selectBook(name) {
+  document.getElementById('bookName').value = name;
+  // 선택된 태그 강조
+  document.querySelectorAll('.book-tag').forEach(t => {
+    t.style.background = t.dataset.name === name ? '#1a1714' : '#f0ede8';
+    t.style.color = t.dataset.name === name ? '#fff' : '#1a1714';
+    t.style.borderColor = t.dataset.name === name ? '#1a1714' : '#d6d0c8';
+  });
+}
+
+function renderBookTags() {
+  const books = getSavedBooks();
+  const dl = document.getElementById('bookList');
+  const wrap = document.getElementById('savedBookTags');
+  if (!dl || !wrap) return;
+
+  // datalist 업데이트
+  dl.innerHTML = books.map(b => `<option value="${b}">`).join('');
+
+  // 태그 UI
+  if (books.length === 0) { wrap.innerHTML = ''; return; }
+
+  const current = document.getElementById('bookName').value.trim();
+  wrap.innerHTML = books.map(b => `
+    <span class="book-tag" data-name="${b}" onclick="selectBook('${b.replace(/'/g,"\'")}')"
+      style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px 4px 10px;
+      border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;
+      font-family:'Pretendard',sans-serif;transition:all 0.15s;
+      background:${b===current?'#1a1714':'#f0ede8'};
+      color:${b===current?'#fff':'#1a1714'};
+      border-color:${b===current?'#1a1714':'#d6d0c8'}">
+      ${b}
+      <span onclick="event.stopPropagation();deleteBook('${b.replace(/'/g,"\'")}')"
+        style="margin-left:2px;opacity:0.5;font-size:10px;cursor:pointer;hover:opacity:1">✕</span>
+    </span>
+  `).join('');
+}
+
+function onBookInput() { renderBookTags(); }
+function onBookChange() { renderBookTags(); }
+
+function renderSavedList() {
+  const lists = getSavedLists();
+  const container = document.getElementById('savedList');
+  const empty = document.getElementById('savedEmpty');
+  container.querySelectorAll('.folder-item, .saved-item').forEach(el => el.remove());
+
+  // 교재명별 그룹핑
+  const groups = {};
+  Object.keys(lists).forEach(key => {
+    const data = lists[key];
+    const book = data.book || '미분류';
+    if (!groups[book]) groups[book] = [];
+    groups[book].push({ key, data });
+  });
+
+  const bookNames = Object.keys(groups).sort();
+  if (bookNames.length === 0) { empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  bookNames.forEach(book => {
+    const items = groups[book].sort((a,b) => parseInt(a.data.day) - parseInt(b.data.day));
+    const isOpen = localStorage.getItem('folder_' + book) !== 'closed';
+
+    const folderEl = document.createElement('div');
+    folderEl.className = 'folder-item';
+
+    const header = document.createElement('div');
+    header.className = 'folder-header';
+    header.innerHTML = `
+      <span class="folder-arrow ${isOpen ? 'open' : ''}">▶</span>
+      <span class="folder-icon">${isOpen ? '📂' : '📁'}</span>
+      <span class="folder-name" title="${book}">${book}</span>
+      <span class="folder-count">${items.length}</span>
+      <button class="folder-del" title="폴더 삭제">✕</button>
+    `;
+
+    const children = document.createElement('div');
+    children.className = 'folder-children' + (isOpen ? ' open' : '');
+
+    // 폴더 토글
+    header.querySelector('.folder-arrow').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFolder(book, header, children);
+    });
+    header.querySelector('.folder-icon').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFolder(book, header, children);
+    });
+    header.querySelector('.folder-name').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFolder(book, header, children);
+    });
+    header.querySelector('.folder-count').addEventListener('click', e => {
+      e.stopPropagation();
+      toggleFolder(book, header, children);
+    });
+
+    // 폴더 삭제
+    header.querySelector('.folder-del').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!confirm(`"${book}" 폴더와 모든 단어장을 삭제할까요?`)) return;
+      const ls = getSavedLists();
+      items.forEach(({ key }) => delete ls[key]);
+      localStorage.setItem('wordlists', JSON.stringify(ls));
+      renderSavedList();
+    });
+
+    // DAY 아이템들
+    items.forEach(({ key, data }) => {
+      const item = document.createElement('div');
+      item.className = 'saved-item' + (key === currentDayKey ? ' active' : '');
+      item.innerHTML = `
+        <span class="saved-item-day">DAY ${data.day}</span>
+        <span class="saved-item-count">${data.words.length}개</span>
+        <button class="saved-item-del" title="삭제">✕</button>
+      `;
+      item.querySelector('.saved-item-del').addEventListener('click', e => deleteWordList(key, e));
+      item.addEventListener('click', () => loadWordList(key));
+      children.appendChild(item);
+    });
+
+    folderEl.appendChild(header);
+    folderEl.appendChild(children);
+    container.insertBefore(folderEl, document.getElementById('savedEmpty'));
+  });
+}
+
+function toggleFolder(book, header, children) {
+  const isOpen = children.classList.contains('open');
+  if (isOpen) {
+    children.classList.remove('open');
+    header.querySelector('.folder-arrow').classList.remove('open');
+    header.querySelector('.folder-icon').textContent = '📁';
+    localStorage.setItem('folder_' + book, 'closed');
+  } else {
+    children.classList.add('open');
+    header.querySelector('.folder-arrow').classList.add('open');
+    header.querySelector('.folder-icon').textContent = '📂';
+    localStorage.removeItem('folder_' + book);
+  }
+}
+
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── localStorage 저장/로드 ──────────────────────────
+function saveInfo() {
+  const name = document.getElementById('academyName').value.trim();
+  if (!name && !logoDataURL) { alert('학원명 또는 로고를 입력해주세요.'); return; }
+  localStorage.setItem('academy_name', name);
+  if (logoDataURL) localStorage.setItem('academy_logo', logoDataURL);
+  showRegistered();
+}
+
+function loadInfo() {
+  const name = localStorage.getItem('academy_name');
+  const logo = localStorage.getItem('academy_logo');
+  if (name || logo) {
+    if (name) document.getElementById('academyName').value = name;
+    if (logo) {
+      logoDataURL = logo;
+      document.getElementById('logoPreview').src = logo;
+      document.getElementById('logoPreview').style.display = 'block';
+      document.getElementById('logoPlaceholder').style.display = 'none';
+    }
+    showRegistered();
+  }
+}
+
+function showRegistered() {
+  const name = localStorage.getItem('academy_name') || '';
+  const logo = localStorage.getItem('academy_logo') || '';
+  document.getElementById('infoRegistered').style.display = 'flex';
+  document.getElementById('infoEdit').style.display = 'none';
+  document.getElementById('editInfoBtn').style.display = 'inline-block';
+  if (logo) { document.getElementById('logoRegistered').src = logo; document.getElementById('logoRegistered').style.display = 'block'; }
+  else { document.getElementById('logoRegistered').style.display = 'none'; }
+  document.getElementById('academyRegisteredName').textContent = name;
+}
+
+function toggleEditMode() {
+  const edit = document.getElementById('infoEdit');
+  const reg  = document.getElementById('infoRegistered');
+  if (edit.style.display === 'none') {
+    edit.style.display = 'block';
+    reg.style.display = 'none';
+    document.getElementById('editInfoBtn').textContent = '✕ 취소';
+  } else {
+    edit.style.display = 'none';
+    reg.style.display = 'flex';
+    document.getElementById('editInfoBtn').textContent = '✏️ 편집';
+  }
+}
+
+// ── 초기 10행 ──
+for (let i = 0; i < 10; i++) addRow(false);
+updateCount();
+loadInfo();
+renderSavedList();
+
+// 기본값: 배움트리 (처음 실행 시 자동 등록)
+if (!localStorage.getItem('academy_name') && !localStorage.getItem('academy_logo')) {
+  const defaultLogo = 'data:image/jpeg;base64,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';
+  localStorage.setItem('academy_name', '배움트리');
+  localStorage.setItem('academy_logo', defaultLogo);
+  document.getElementById('academyName').value = '배움트리';
+  logoDataURL = defaultLogo;
+  document.getElementById('logoPreview').src = defaultLogo;
+  document.getElementById('logoPreview').style.display = 'block';
+  document.getElementById('logoPlaceholder').style.display = 'none';
+  showRegistered();
+}
+// 앱 시작 시 클라우드 자동 로드
+cloudLoad();
+
+function addRow(focus = true) {
+  const wrap = document.getElementById('wordTableWrap');
+  const addBtn = wrap.querySelector('.add-row-btn');
+  const idx = wrap.querySelectorAll('.word-row').length + 1;
+  const row = document.createElement('div');
+  row.className = 'word-row';
+  row.innerHTML = `
+    <div class="word-num">${String(idx).padStart(2,'0')}</div>
+    <input class="word-input" type="text" placeholder="English" oninput="syncWords()">
+    <input class="word-input" type="text" placeholder="한글 뜻" oninput="syncWords()">
+    <button class="del-btn" onclick="deleteRow(this)" title="삭제">✕</button>
+  `;
+  wrap.insertBefore(row, addBtn);
+  if (focus) row.querySelector('input').focus();
+  syncWords();
+}
+
+function deleteRow(btn) {
+  const row = btn.closest('.word-row');
+  row.remove();
+  // 번호 재정렬
+  document.querySelectorAll('.word-row').forEach((r, i) => {
+    r.querySelector('.word-num').textContent = String(i+1).padStart(2,'0');
+  });
+  syncWords();
+}
+
+function syncWords() {
+  words = [];
+  document.querySelectorAll('.word-row').forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const eng = inputs[0].value.trim();
+    const kor = inputs[1].value.trim();
+    if (eng || kor) words.push({ eng, kor });
+  });
+  updateCount();
+}
+
+function updateCount() {
+  const valid = words.filter(w => w.eng && w.kor).length;
+  document.getElementById('wordCount').textContent = valid;
+}
+
+function handleLogo(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    logoDataURL = ev.target.result;
+    const preview = document.getElementById('logoPreview');
+    preview.src = logoDataURL;
+    preview.style.display = 'block';
+    document.getElementById('logoPlaceholder').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+// generate()에서 학원명을 localStorage에서 읽도록 academyName 보완
+function getAcademyName() {
+  return document.getElementById('academyName').value.trim() || localStorage.getItem('academy_name') || '';
+}
+
+// ── 생성 ──────────────────────────────────────────
+function generate(type) {
+  const valid = shuffle(words.filter(w => w.eng && w.kor));
+  if (valid.length === 0) {
+    alert('영어 단어와 한글 뜻을 입력해주세요.');
+    return;
+  }
+
+  const academy = getAcademyName();
+  const bookName = document.getElementById('bookName').value.trim();
+  const unitRaw = document.getElementById('unitName').value.trim();
+  const unit    = unitRaw ? `DAY ${unitRaw}` : '';
+  const today   = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'long',day:'numeric'});
+
+  document.getElementById('previewPlaceholder').style.display = 'none';
+  document.getElementById('printToolbar').classList.add('visible');
+
+  const container = document.getElementById('sheetsContainer');
+  container.innerHTML = '';
+
+  const typeLabels = { A:'영어→한글', B:'한글→영어', C:'혼합' };
+  const typeColors = { A:'#111111', B:'#111111', C:'#111111' };
+
+  // 테스트지
+  container.appendChild(makeSheetWrap(
+    `${typeLabels[type]} 테스트지`,
+    makeSheet(valid, type, false, academy, unit, today, typeColors[type], bookName)
+  ));
+
+  // 답지
+  container.appendChild(makeSheetWrap(
+    `${typeLabels[type]} 답지`,
+    makeSheet(valid, type, true, academy, unit, today, typeColors[type], bookName)
+  ));
+
+  document.getElementById('rightPanel').scrollTop = 0;
+}
+
+function makeSheetWrap(label, sheetEl) {
+  const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap';
+  const lbl = document.createElement('div');
+  lbl.className = 'sheet-label';
+  lbl.textContent = label;
+  wrap.appendChild(lbl);
+  wrap.appendChild(sheetEl);
+  return wrap;
+}
+
+function makeSheet(words, type, isAnswer, academy, unit, today, accentColor, bookName) {
+  const sheet = document.createElement('div');
+  sheet.className = 'a4-sheet';
+
+  const typeTitle = { A:'영어 단어 테스트', B:'한글 뜻 테스트', C:'혼합 테스트' };
+
+  // 헤더
+  const hdr = document.createElement('div');
+  hdr.className = 'sheet-header';
+  hdr.style.borderBottomColor = accentColor;
+
+  const hdrLeft = document.createElement('div');
+  hdrLeft.className = 'sheet-header-left';
+
+  const currentLogo = logoDataURL || localStorage.getItem('academy_logo') || null;
+  if (currentLogo) {
+    const logo = document.createElement('img');
+    logo.className = 'sheet-logo';
+    logo.src = currentLogo;
+    logo.style.display = 'block';
+    hdrLeft.appendChild(logo);
+  }
+
+
+  const title = document.createElement('div');
+  title.className = 'sheet-title';
+  title.style.color = accentColor;
+  const dayLabel = unit ? unit : 'DAY —';
+  title.innerHTML = `${dayLabel}${isAnswer ? ' <span class="answer-badge">ANSWER</span>' : ''}`;
+  hdrLeft.appendChild(title);
+
+  if (bookName) {
+    const bookEl = document.createElement('div');
+    bookEl.style.cssText = 'font-size:11px;color:#888;font-family:"Pretendard",sans-serif;margin-top:2px;letter-spacing:0.2px;';
+    bookEl.textContent = bookName;
+    hdrLeft.appendChild(bookEl);
+  }
+
+
+
+
+
+  const hdrRight = document.createElement('div');
+  hdrRight.className = 'sheet-meta';
+  hdrRight.innerHTML = `
+    <div class="sheet-meta-row">이름 <span>&nbsp;</span></div>
+    <div class="sheet-meta-row">날짜 <span>${today}</span></div>
+    <div class="sheet-meta-row">점수 <span>&nbsp;</span></div>
+    <div class="sheet-meta-row" style="margin-top:6px;font-size:10px;color:#aaa">총 ${words.length}문항</div>
+  `;
+
+  hdr.appendChild(hdrLeft);
+  hdr.appendChild(hdrRight);
+  sheet.appendChild(hdr);
+
+  // 테이블
+  const table = document.createElement('table');
+  table.className = 'word-sheet-table';
+
+  // 헤더행
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+
+  let cols = [];
+  if (type === 'A') cols = ['No.', '영어 단어', isAnswer ? '정답' : '뜻 쓰기'];
+  if (type === 'B') cols = ['No.', '한글 뜻', isAnswer ? '정답' : '단어 쓰기'];
+  if (type === 'C') cols = ['No.', '문제', isAnswer ? '정답' : '답 쓰기'];
+
+  cols.forEach(col => {
+    const th = document.createElement('th');
+    th.textContent = col;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  words.forEach((w, i) => {
+    const tr = document.createElement('tr');
+    const num = i + 1;
+
+    const tdNum = document.createElement('td');
+    tdNum.textContent = String(num).padStart(2, '0');
+    tr.appendChild(tdNum);
+
+    if (type === 'A') {
+      const tdQ = document.createElement('td');
+      tdQ.className = 'col-divider';
+      tdQ.textContent = w.eng;
+      tdQ.style.fontFamily = "'DM Mono', monospace";
+      tdQ.style.fontWeight = '500';
+      tr.appendChild(tdQ);
+
+      const tdA = document.createElement('td');
+      if (isAnswer) {
+        tdA.className = 'answer';
+        tdA.textContent = w.kor;
+      } else {
+        const line = document.createElement('div');
+        line.className = 'write-line';
+        tdA.appendChild(line);
+      }
+      tr.appendChild(tdA);
+
+    } else if (type === 'B') {
+      const tdQ = document.createElement('td');
+      tdQ.className = 'col-divider';
+      tdQ.textContent = w.kor;
+      tr.appendChild(tdQ);
+
+      const tdA = document.createElement('td');
+      if (isAnswer) {
+        tdA.className = 'answer';
+        tdA.textContent = w.eng;
+        tdA.style.fontFamily = "'DM Mono', monospace";
+      } else {
+        const line = document.createElement('div');
+        line.className = 'write-line';
+        tdA.appendChild(line);
+      }
+      tr.appendChild(tdA);
+
+    } else if (type === 'C') {
+      const isEng = num % 2 === 1;
+
+      const tdQ = document.createElement('td');
+      tdQ.className = 'col-divider';
+      tdQ.textContent = isEng ? w.eng : w.kor;
+      if (isEng) { tdQ.style.fontFamily = "'DM Mono', monospace"; tdQ.style.fontWeight = '500'; }
+      tr.appendChild(tdQ);
+
+      const tdA = document.createElement('td');
+      if (isAnswer) {
+        tdA.className = 'answer';
+        tdA.textContent = isEng ? w.kor : w.eng;
+        if (!isEng) tdA.style.fontFamily = "'DM Mono', monospace";
+      } else {
+        const line = document.createElement('div');
+        line.className = 'write-line';
+        tdA.appendChild(line);
+      }
+      tr.appendChild(tdA);
+    }
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  sheet.appendChild(table);
+  return sheet;
+}
+
+function printOnly(mode) {
+  // mode: 'test' | 'answer' | 'both'
+  const wraps = document.querySelectorAll('#sheetsContainer .sheet-wrap');
+  // sheet-wrap 순서: 0=테스트지, 1=답지 (generate에서 이 순서로 추가)
+  wraps.forEach((wrap, i) => {
+    if (mode === 'both') {
+      wrap.style.display = '';
+    } else if (mode === 'test') {
+      wrap.style.display = i % 2 === 0 ? '' : 'none';
+    } else if (mode === 'answer') {
+      wrap.style.display = i % 2 === 1 ? '' : 'none';
+    }
+  });
+  window.print();
+  // 인쇄 후 복원
+  setTimeout(() => wraps.forEach(w => w.style.display = ''), 1000);
+}
+
+function clearPreview() {
+  document.getElementById('sheetsContainer').innerHTML = '';
+  document.getElementById('previewPlaceholder').style.display = 'flex';
+  document.getElementById('printToolbar').classList.remove('visible');
+}
+</script>
+</body>
+</html>
